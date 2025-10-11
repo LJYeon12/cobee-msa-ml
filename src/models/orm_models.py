@@ -48,6 +48,17 @@ class MemberInformationORM(Base):
     apply_records = relationship("ApplyRecordORM", back_populates="member")
     bookmarks = relationship("BookmarkORM", back_populates="member")
     comments = relationship("CommentORM", back_populates="member")
+    
+    def calculate_age(self) -> int:
+        """만 나이 계산"""
+        from datetime import date
+        today = date.today()
+        birth = self.birth_date
+        age = today.year - birth.year
+        # 생일이 아직 안 지났으면 -1
+        if (today.month, today.day) < (birth.month, birth.day):
+            age -= 1
+        return age
 
 
 # ========================================

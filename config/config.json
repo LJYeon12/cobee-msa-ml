@@ -64,5 +64,12 @@
     "enabled": true,
     "ttl_seconds": 3600,
     "invalidation_on_interaction": false
+  },
+  "rule_based": {
+    "feature_weights": {
+      "gender": 5.0,
+      "age": 3.0
+    },
+    "distance_metric": "euclidean"
   }
 }
