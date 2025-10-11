@@ -1,6 +1,6 @@
 """
 추천 API 라우터
-Phase에 따라 적절한 추천 알고리즘을 선택하여 결과를 반환합니다.
+Phase에 따라 하이브리드 추천 알고리즘을 사용하여 결과를 반환합니다.
 """
 
 from typing import List
@@ -12,10 +12,9 @@ from src.models.schemas import (
     RecommendationResponse,
     RecommendationItem
 )
-from src.api.dependencies import get_database, get_config, get_knn_recommender
+from src.api.dependencies import get_database, get_config
 from src.utils.logger import get_logger
 from src.utils.config_loader import ConfigLoader
-from src.recommender.knn.rule_based import RuleBasedKNNRecommender
 
 logger = get_logger(__name__)
 
@@ -33,8 +32,8 @@ def recommend_posts(
     
     현재 Phase에 따라 적절한 추천 알고리즘을 사용합니다:
     - P1 (0-99): Rule-Based KNN 100%
-    - P2 (100-999): Rule-Based KNN 60% + MF 40% (MF 미구현 시 KNN 100%)
-    - P3 (1000+): Rule-Based KNN 20% + MF 80% (MF 미구현 시 KNN 100%)
+    - P2 (100-999): Rule-Based KNN 60% + MF 40%
+    - P3 (1000+): Rule-Based KNN 20% + MF 80%
     
     Args:
         request: 추천 요청 (user_id, limit, include_explanations)
@@ -52,88 +51,32 @@ def recommend_posts(
     
     logger.info(f"현재 Phase: {current_phase}, 상호작용 수: {interaction_count}")
     
-    # 2. Phase에 따른 추천
+    # 2. 하이브리드 추천 (Phase 자동 처리)
     try:
-        if current_phase == "P1":
-            # P1: Rule-Based KNN 100%
-            recommendations = _recommend_with_knn_only(
-                request.user_id,
-                request.limit,
-                request.include_explanations,
-                db,
-                cfg
-            )
+        from src.recommender.hybrid_recommender import HybridRecommender
         
-        elif current_phase == "P2":
-            # P2: MF 모델 확인
-            # TODO: MF 모델 구현 후 혼합 로직 추가
-            # 현재는 KNN 100%
-            recommendations = _recommend_with_knn_only(
-                request.user_id,
-                request.limit,
-                request.include_explanations,
-                db,
-                cfg
-            )
-            logger.warning("P2 Phase이지만 MF 모델이 없어 KNN 100% 사용")
-        
-        elif current_phase == "P3":
-            # P3: MF 모델 확인
-            # TODO: MF 모델 구현 후 혼합 로직 추가
-            # 현재는 KNN 100%
-            recommendations = _recommend_with_knn_only(
-                request.user_id,
-                request.limit,
-                request.include_explanations,
-                db,
-                cfg
-            )
-            logger.warning("P3 Phase이지만 MF 모델이 없어 KNN 100% 사용")
-        
-        else:
-            raise ValueError(f"알 수 없는 Phase: {current_phase}")
+        hybrid_recommender = HybridRecommender(db, cfg)
+        recommendations = hybrid_recommender.recommend(
+            user_id=request.user_id,
+            limit=request.limit,
+            include_explanations=request.include_explanations
+        )
         
         # 3. 응답 생성
+        weights = cfg.get_weights(current_phase)
+        model_version = f"Hybrid-{current_phase}-Rule{int(weights['rule_based']*100)}%-MF{int(weights['matrix_factorization']*100)}%"
+        
         return RecommendationResponse(
             user_id=request.user_id,
             recommendations=recommendations,
             total_count=len(recommendations),
             phase=current_phase,
-            model_version=f"KNN-v1.0-{current_phase}"
+            model_version=model_version
         )
     
     except Exception as e:
         logger.error(f"추천 생성 실패: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"추천 생성 중 오류 발생: {str(e)}")
-
-
-def _recommend_with_knn_only(
-    user_id: int,
-    limit: int,
-    include_explanations: bool,
-    db: Session,
-    cfg: ConfigLoader
-) -> List[RecommendationItem]:
-    """
-    Rule-Based KNN만 사용한 추천
-    
-    Args:
-        user_id: 사용자 ID
-        limit: 추천 개수
-        include_explanations: 설명 포함 여부
-        db: 데이터베이스 세션
-        cfg: Config 인스턴스
-    
-    Returns:
-        List[RecommendationItem]: 추천 목록
-    """
-    knn_recommender = RuleBasedKNNRecommender(db, cfg)
-    recommendations = knn_recommender.recommend(
-        user_id=user_id,
-        limit=limit,
-        include_explanations=include_explanations
-    )
-    return recommendations
 
 
 @router.get("/health")
@@ -157,6 +100,10 @@ def health_check(
         interaction_count = cfg.get_interaction_count()
         weights = cfg.get_weights()
         
+        # MF 모델 확인
+        import os
+        mf_available = os.path.exists("models/svd_model.pkl")
+        
         return {
             "status": "healthy" if db_status else "unhealthy",
             "database": "connected" if db_status else "disconnected",
@@ -166,8 +113,9 @@ def health_check(
                 "weights": weights
             },
             "services": {
-                "knn": "available",
-                "mf": "not_implemented"
+                "rule_based": "available",
+                "mf_model": "available" if mf_available else "not_available",
+                "hybrid": "available"
             }
         }
     
@@ -188,7 +136,8 @@ def get_current_config(cfg: ConfigLoader = Depends(get_config)):
         "phase": {
             "current": cfg.get_current_phase(),
             "interaction_count": cfg.get_interaction_count(),
-            "thresholds": cfg.get("phase.thresholds")
+            "thresholds": cfg.get("phase.thresholds"),
+            "auto_transition_enabled": cfg.get("phase.auto_transition_enabled")
         },
         "weights": {
             "P1": cfg.get_weights("P1"),

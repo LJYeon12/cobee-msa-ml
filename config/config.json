@@ -4,6 +4,7 @@
   "phase": {
     "current": "P1",
     "interaction_count": 0,
+    "auto_transition_enabled": true,
     "thresholds": {
       "P1": {
         "min": 0,
@@ -19,6 +20,47 @@
         "min": 1000,
         "max": null,
         "description": "Mature - MF Dominant"
+      }
+    },
+    "transition_criteria": {
+      "min_improvement_ratio": 1.1,
+      "evaluation_interval": 100,
+      "metrics": {
+        "precision_at_10": {
+          "weight": 0.5,
+          "min_value": 0.03
+        },
+        "recall_at_10": {
+          "weight": 0.3,
+          "min_value": 0.15
+        },
+        "ndcg_at_10": {
+          "weight": 0.2,
+          "min_value": 0.05
+        }
+      }
+    },
+    "evaluation_history": {
+      "P1": {
+        "last_evaluated": null,
+        "precision_at_10": null,
+        "recall_at_10": null,
+        "ndcg_at_10": null,
+        "interaction_count_at_eval": null
+      },
+      "P2": {
+        "last_evaluated": null,
+        "precision_at_10": null,
+        "recall_at_10": null,
+        "ndcg_at_10": null,
+        "interaction_count_at_eval": null
+      },
+      "P3": {
+        "last_evaluated": null,
+        "precision_at_10": null,
+        "recall_at_10": null,
+        "ndcg_at_10": null,
+        "interaction_count_at_eval": null
       }
     }
   },
