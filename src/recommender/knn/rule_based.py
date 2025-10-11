@@ -1,6 +1,7 @@
 """
 Rule-Based KNN 추천 엔진
 가중치를 적용한 KNN 알고리즘으로 추천을 생성합니다.
+성별/나이는 하드 필터가 아닌 소프트 스코어링으로 처리합니다.
 """
 
 import math
@@ -17,7 +18,6 @@ from src.models.schemas import RecommendationItem, RecommendationExplanation
 from src.utils.config_loader import ConfigLoader
 from src.utils.logger import get_logger
 
-from .filters import is_gender_compatible, is_age_compatible_bidirectional
 from .similarity import (
     create_feature_vector,
     create_weight_vector,
@@ -35,8 +35,8 @@ class RuleBasedKNNRecommender:
     
     특징:
     - 가중치 적용 KNN (성별, 나이에 높은 가중치)
-    - 하드 필터링 (제외 목록, 성별, 나이)
-    - 양방향 매칭 (사용자 ↔ 게시글 작성자)
+    - 하드 필터링: 제외 목록(북마크/지원/본인 게시글)만 필터링
+    - 소프트 스코어링: 성별/나이는 거리 계산에만 반영
     """
     
     def __init__(self, db: Session, config: ConfigLoader):
@@ -109,6 +109,31 @@ class RuleBasedKNNRecommender:
         
         return distance
     
+    def calculate_max_possible_distance(self) -> float:
+        """
+        이론적 최대 거리 계산
+        
+        벡터 구조:
+        - 성별 One-Hot (3): 최대 차이 = sqrt(2) → 제곱 = 2
+        - 나이 (1): 최대 차이 = 15 (만 34 - 만 19) → 제곱 = 225
+        - 생활패턴 One-Hot (2): 최대 차이 = sqrt(2) → 제곱 = 2
+        - 성격 One-Hot (2): 최대 차이 = sqrt(2) → 제곱 = 2
+        - 습관 Boolean (3): 최대 차이 = 1 → 제곱 = 1
+        - 동거인 수 (1): 최대 차이 = 10 (추정) → 제곱 = 100
+        
+        Returns:
+            float: 최대 가능 거리
+        """
+        max_distance_squared = (
+            3 * self.gender_weight * 2 +      # 성별: 3개 × weight × 2
+            1 * self.age_weight * (15**2) +   # 나이: 1개 × weight × 225
+            2 * 1.0 * 2 +                     # 생활패턴: 2개 × 1.0 × 2
+            2 * 1.0 * 2 +                     # 성격: 2개 × 1.0 × 2
+            3 * 1.0 * (1**2) +                # 습관: 3개 × 1.0 × 1
+            1 * 1.0 * (10**2)                 # 동거인: 1개 × 1.0 × 100
+        )
+        return math.sqrt(max_distance_squared)
+    
     def generate_explanation(
         self,
         member: MemberInformationORM,
@@ -163,13 +188,12 @@ class RuleBasedKNNRecommender:
         
         # 거리를 점수로 변환 (0~1)
         # 거리가 작을수록 점수 높음
-        # 벡터 길이 12개, 최대 가중치 합 계산
-        max_distance = math.sqrt(
-            3 * self.gender_weight +  # 성별 3개 특성
-            1 * self.age_weight +      # 나이 1개 특성
-            8 * 1.0                    # 나머지 8개 특성 (가중치 1.0)
-        )
-        score = max(0.0, 1.0 - (distance / max_distance))
+        max_distance = self.calculate_max_possible_distance()
+        
+        # 정규화: score = 1 - (distance / max_distance)
+        # distance가 0이면 score = 1.0 (완벽한 매칭)
+        # distance가 max_distance면 score = 0.0 (최악의 매칭)
+        score = max(0.0, min(1.0, 1.0 - (distance / max_distance)))
         
         return RecommendationExplanation(
             score=score,
@@ -177,6 +201,7 @@ class RuleBasedKNNRecommender:
             reasons=reasons,
             details={
                 "distance": round(distance, 4),
+                "max_distance": round(max_distance, 4),
                 "gender_weight": self.gender_weight,
                 "age_weight": self.age_weight
             }
@@ -220,42 +245,41 @@ class RuleBasedKNNRecommender:
         # 4. 필터링 및 거리 계산
         candidates = []
         for post in recruiting_posts:
-            # 제외 목록 체크
+            logger.debug(f"게시글 {post.recruit_post_id} 검사 시작")
+            
+            # 하드 필터 1: 제외 목록 체크
             if post.recruit_post_id in excluded_ids:
+                logger.debug(f"  -> 제외 목록에 포함 (북마크 또는 지원)")
                 continue
             
-            # 본인이 작성한 게시글 제외
+            # 하드 필터 2: 본인이 작성한 게시글 제외
             if post.member_id == user_id:
+                logger.debug(f"  -> 본인이 작성한 게시글")
                 continue
             
             # 작성자 정보 조회
             author = post.member
             if not author:
+                logger.debug(f"  -> 작성자 정보 없음")
                 continue
             
-            # 성별 호환성 체크 (하드 필터)
-            if not is_gender_compatible(member, author, post.preferred_gender):
+            # 소프트 스코어링: 성별/나이는 필터링하지 않고 거리 계산에만 반영
+            try:
+                distance = self.calculate_weighted_distance(member, post, author)
+                logger.debug(f"  -> ✅ 통과! (거리: {distance:.4f})")
+                
+                candidates.append({
+                    "post": post,
+                    "author": author,
+                    "distance": distance
+                })
+            except Exception as e:
+                logger.error(f"  -> 거리 계산 실패: {e}")
                 continue
-            
-            # 나이 호환성 체크 (양방향, 하드 필터)
-            if not is_age_compatible_bidirectional(
-                member, author,
-                post.preferred_age_min, post.preferred_age_max
-            ):
-                continue
-            
-            # 가중치 적용 거리 계산
-            distance = self.calculate_weighted_distance(member, post, author)
-            
-            candidates.append({
-                "post": post,
-                "author": author,
-                "distance": distance
-            })
         
         logger.info(f"필터링 후 후보: {len(candidates)}개")
         
-        # 5. 거리 기준 정렬 (가까운 순)
+        # 5. 거리 기준 정렬 (가까운 순 = 유사도 높은 순)
         candidates.sort(key=lambda x: x["distance"])
         
         # 6. 상위 K개 선택

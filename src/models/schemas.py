@@ -1,6 +1,7 @@
 """
 Pydantic 데이터 모델 스키마
 API 요청/응답 및 데이터 검증에 사용됩니다. (springboot DTO 역할)
+ORM 모델(snake_case)과 API(camelCase) 양방향 호환
 """
 
 from datetime import datetime, date
@@ -51,30 +52,35 @@ class MemberInformation(BaseModel):
     회원 정보 (기본 정보 + 선호도 + 공개 프로필)
     """
     # 기본 정보
-    memberId: int
+    memberId: int = Field(alias="member_id")
     gender: Gender
-    birthDate: datetime
+    birthDate: datetime = Field(alias="birth_date")
     
     # 선호도 (Preferred)
-    preferredGender: Optional[Gender] = None
-    preferredLifeStyle: Optional[Lifestyle] = None
-    preferredPersonality: Optional[Personality] = None
-    possibleSmoking: bool = False
-    possibleSnoring: bool = False
-    hasPetAllowed: bool = False
-    cohabitantCount: Optional[int] = None
-    preferredAgeMin: Optional[int] = Field(None, ge=19, le=34)
-    preferredAgeMax: Optional[int] = Field(None, ge=19, le=34)
+    preferredGender: Optional[Gender] = Field(None, alias="preferred_gender")
+    preferredLifeStyle: Optional[Lifestyle] = Field(None, alias="preferred_life_style")
+    preferredPersonality: Optional[Personality] = Field(None, alias="preferred_personality")
+    possibleSmoking: bool = Field(False, alias="possible_smoking")
+    possibleSnoring: bool = Field(False, alias="possible_snoring")
+    hasPetAllowed: bool = Field(False, alias="has_pet_allowed")
+    cohabitantCount: Optional[int] = Field(None, alias="cohabitant_count")
+    preferredAgeMin: Optional[int] = Field(None, ge=19, le=34, alias="preferred_age_min")
+    preferredAgeMax: Optional[int] = Field(None, ge=19, le=34, alias="preferred_age_max")
     
     # 본인 특성 (my)
-    myLifestyle: Optional[Lifestyle] = None
-    myPersonality: Optional[Personality] = None
-    isSmoking: bool = False
-    isSnoring: bool = False
-    hasPet: bool = False
+    myLifestyle: Optional[Lifestyle] = Field(None, alias="my_lifestyle")
+    myPersonality: Optional[Personality] = Field(None, alias="my_personality")
+    isSmoking: bool = Field(False, alias="is_smoking")
+    isSnoring: bool = Field(False, alias="is_snoring")
+    hasPet: bool = Field(False, alias="has_pet")
+    
+    # 타임스탬프
+    createdAt: datetime = Field(default_factory=datetime.now, alias="created_at")
+    updatedAt: Optional[datetime] = Field(None, alias="updated_at")
     
     class Config:
-        from_attributes = True  # SQLAlchemy 모델과 호환
+        from_attributes = True  # SQLAlchemy ORM 호환
+        populate_by_name = True  # camelCase와 snake_case 모두 허용
     
     @field_validator('preferredAgeMin', 'preferredAgeMax')
     @classmethod
@@ -97,92 +103,96 @@ class MemberInformation(BaseModel):
 
 class RecruitPost(BaseModel):
     """모집 게시글"""
-    recruitPostId: int
-    recruitCount: int
-    rentCostMin: Optional[int] = None
-    rentCostMax: Optional[int] = None
-    monthlyCostMin: Optional[int] = None
-    monthlyCostMax: Optional[int] = None
+    recruitPostId: int = Field(alias="recruit_post_id")
+    recruitCount: int = Field(alias="recruit_count")
+    rentCostMin: Optional[int] = Field(None, alias="rent_cost_min")
+    rentCostMax: Optional[int] = Field(None, alias="rent_cost_max")
+    monthlyCostMin: Optional[int] = Field(None, alias="monthly_cost_min")
+    monthlyCostMax: Optional[int] = Field(None, alias="monthly_cost_max")
     
     # 선호 조건
-    preferredGender: Optional[Gender] = None
-    preferredLifeStyle: Optional[Lifestyle] = None
-    preferredPersonality: Optional[Personality] = None
-    isSmoking: bool = False
-    isSnoring: bool = False
-    isPetAllowed: bool = False
-    cohabitantCount: Optional[int] = None
-    preferredAgeMin: Optional[int] = Field(None, ge=19, le=34)
-    preferredAgeMax: Optional[int] = Field(None, ge=19, le=34)
+    preferredGender: Optional[Gender] = Field(None, alias="preferred_gender")
+    preferredLifeStyle: Optional[Lifestyle] = Field(None, alias="preferred_life_style")
+    preferredPersonality: Optional[Personality] = Field(None, alias="preferred_personality")
+    isSmoking: bool = Field(False, alias="is_smoking")
+    isSnoring: bool = Field(False, alias="is_snoring")
+    isPetAllowed: bool = Field(False, alias="is_pet_allowed")
+    cohabitantCount: Optional[int] = Field(None, alias="cohabitant_count")
+    preferredAgeMin: Optional[int] = Field(None, ge=19, le=34, alias="preferred_age_min")
+    preferredAgeMax: Optional[int] = Field(None, ge=19, le=34, alias="preferred_age_max")
     
     # 방 정보
-    hasRoom: bool = False
+    hasRoom: bool = Field(False, alias="has_room")
     address: Optional[str] = None
-    regionLatitude: Optional[float] = None
-    regionLongitude: Optional[float] = None
+    regionLatitude: Optional[float] = Field(None, alias="region_latitude")
+    regionLongitude: Optional[float] = Field(None, alias="region_longitude")
     
     # 상태
-    recruitStatus: RecruitStatus
+    recruitStatus: RecruitStatus = Field(alias="recruit_status")
     
     # 외래키
-    memberId: int  # 작성자
+    memberId: int = Field(alias="member_id")  # 작성자
     
     # 타임스탬프
-    createdAt: datetime
-    updatedAt: Optional[datetime] = None
+    createdAt: datetime = Field(alias="created_at")
+    updatedAt: Optional[datetime] = Field(None, alias="updated_at")
     
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class ApplyRecord(BaseModel):
     """지원 기록"""
-    recordId: int
-    matchStatus: MatchStatus
-    submittedAt: datetime
+    recordId: int = Field(alias="record_id")
+    matchStatus: MatchStatus = Field(alias="match_status")
+    submittedAt: datetime = Field(alias="submitted_at")
     
     # 외래키
-    memberId: int
-    recruitPostId: int
+    memberId: int = Field(alias="member_id")
+    recruitPostId: int = Field(alias="recruit_post_id")
     
     # 타임스탬프
-    createdAt: datetime
-    updatedAt: Optional[datetime] = None
+    createdAt: datetime = Field(alias="created_at")
+    updatedAt: Optional[datetime] = Field(None, alias="updated_at")
     
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class Bookmark(BaseModel):
     """북마크 (관심 표시)"""
-    bookmarkId: int
+    bookmarkId: int = Field(alias="bookmark_id")
     
     # 외래키
-    memberId: int
-    recruitPostId: int
+    memberId: int = Field(alias="member_id")
+    recruitPostId: int = Field(alias="recruit_post_id")
     
     # 타임스탬프
-    createdAt: datetime
-    updatedAt: Optional[datetime] = None
+    createdAt: datetime = Field(alias="created_at")
+    updatedAt: Optional[datetime] = Field(None, alias="updated_at")
     
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class Comment(BaseModel):
     """댓글"""
-    commentId: int
+    commentId: int = Field(alias="comment_id")
     
     # 외래키
-    memberId: int
-    recruitPostId: int
+    memberId: int = Field(alias="member_id")
+    recruitPostId: int = Field(alias="recruit_post_id")
     
     # 타임스탬프
-    createdAt: datetime
-    updatedAt: Optional[datetime] = None
+    createdAt: datetime = Field(alias="created_at")
+    updatedAt: Optional[datetime] = Field(None, alias="updated_at")
     
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 # ========== API 요청/응답 스키마 ==========

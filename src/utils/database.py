@@ -5,7 +5,7 @@ Engine 생성, Session 관리, Dependency Injection
 
 import os
 from typing import Generator
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from dotenv import load_dotenv
@@ -14,11 +14,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 데이터베이스 URL 조립
-POSTGRES_HOST = os.getenv("POSTGRES_HOST")
-POSTGRES_PORT = os.getenv("POSTGRES_PORT")
-POSTGRES_DB = os.getenv("POSTGRES_DB")
-POSTGRES_USER = os.getenv("POSTGRES_USER")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "roommate_recommendation")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "cobee_user")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "cobee_password")
 
 DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
@@ -40,6 +40,7 @@ SessionLocal = sessionmaker(
 
 # Base: 모든 ORM 모델의 부모 클래스
 Base = declarative_base()
+
 
 # Dependency Injection: FastAPI에서 DB 세션 사용
 def get_db() -> Generator[Session, None, None]:
@@ -72,7 +73,7 @@ def health_check() -> bool:
     """
     try:
         db = SessionLocal()
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db.close()
         return True
     except Exception as e:
@@ -90,6 +91,18 @@ def init_db():
     """
     Base.metadata.create_all(bind=engine)
     print("✓ 데이터베이스 테이블 생성 완료")
+
+
+def close_all_connections():
+    """
+    모든 데이터베이스 연결 종료
+    애플리케이션 종료 시 호출
+    """
+    try:
+        engine.dispose()
+        print("✓ 데이터베이스 연결 종료 완료")
+    except Exception as e:
+        print(f"✗ 데이터베이스 연결 종료 실패: {e}")
 
 
 # 애플리케이션 시작 시 실행
