@@ -1,147 +1,228 @@
 """
 FastAPI 메인 애플리케이션
-룸메이트 추천 시스템 API 서버
+
+추천 시스템 API 서버
+- Phase 자동 업데이트 스케줄러 포함
 """
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import time
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+from datetime import datetime
+import sys
+import os
+
+# 프로젝트 루트를 Python 경로에 추가
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.api.routers import recommendations
 from src.utils.logger import get_logger
-from src.utils.config_loader import config
+from src.utils.config_loader import ConfigLoader
 
 logger = get_logger(__name__)
 
 # FastAPI 앱 생성
 app = FastAPI(
-    title="Cobee 룸메이트 추천 시스템",
-    description="하이브리드 추천 시스템 (Rule-Based KNN + Matrix Factorization)",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    title="Cobee Roommate Recommendation API",
+    description="룸메이트 추천 시스템 API",
+    version="1.0.0"
 )
 
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 프로덕션에서는 특정 origin만 허용
+    allow_origins=["*"],  # 프로덕션에서는 특정 도메인만 허용
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-# 미들웨어: 요청 로깅
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """모든 HTTP 요청을 로깅합니다."""
-    start_time = time.time()
-    
-    logger.info(f"요청 시작: {request.method} {request.url.path}")
-    
-    response = await call_next(request)
-    
-    process_time = time.time() - start_time
-    logger.info(
-        f"요청 완료: {request.method} {request.url.path} "
-        f"(status={response.status_code}, time={process_time:.3f}s)"
-    )
-    
-    return response
-
-
-# 예외 핸들러
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """전역 예외 처리"""
-    logger.error(f"예외 발생: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "detail": "서버 내부 오류가 발생했습니다.",
-            "type": type(exc).__name__
-        }
-    )
-
-
 # 라우터 등록
 app.include_router(recommendations.router)
 
+# 스케줄러 인스턴스
+scheduler = BackgroundScheduler()
 
-# 루트 엔드포인트
+
+def run_phase_update():
+    """
+    Phase 업데이트 작업
+    
+    스케줄러가 호출하는 함수
+    """
+    logger.info("=" * 60)
+    logger.info("스케줄러: Phase 자동 업데이트 시작")
+    logger.info(f"실행 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info("=" * 60)
+    
+    try:
+        from scripts.update_phase import PhaseUpdater
+        
+        updater = PhaseUpdater()
+        new_phase = updater.run()
+        
+        logger.info(f"스케줄러: Phase 업데이트 완료 - {new_phase}")
+        
+    except Exception as e:
+        logger.error(f"스케줄러: Phase 업데이트 실패 - {e}", exc_info=True)
+
+
+@app.on_event("startup")
+def startup_event():
+    """
+    서버 시작 시 실행되는 이벤트
+    
+    - 스케줄러 시작
+    - 초기 Phase 업데이트 (선택사항)
+    """
+    logger.info("=" * 60)
+    logger.info("FastAPI 서버 시작")
+    logger.info("=" * 60)
+    
+    # Config 로드
+    try:
+        config = ConfigLoader()
+        config.load_config()
+        
+        current_phase = config.get_current_phase()
+        interaction_count = config.get_interaction_count()
+        
+        logger.info(f"현재 Phase: {current_phase}")
+        logger.info(f"상호작용 수: {interaction_count}")
+        
+    except Exception as e:
+        logger.warning(f"Config 로드 실패: {e}")
+    
+    # 스케줄러 작업 등록
+    try:
+        # 매일 새벽 4:50에 실행
+        scheduler.add_job(
+            run_phase_update,
+            CronTrigger(hour=4, minute=50),
+            id='phase_update',
+            name='Phase 자동 업데이트',
+            replace_existing=True
+        )
+        
+        # 스케줄러 시작
+        scheduler.start()
+        
+        logger.info("✅ 스케줄러 시작 완료")
+        logger.info("   - Phase 자동 업데이트: 매일 04:50")
+        
+        # 선택사항: 서버 시작 시 즉시 1회 실행
+        # run_phase_update()
+        
+    except Exception as e:
+        logger.error(f"스케줄러 시작 실패: {e}", exc_info=True)
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    """
+    서버 종료 시 실행되는 이벤트
+    
+    - 스케줄러 종료
+    """
+    logger.info("=" * 60)
+    logger.info("FastAPI 서버 종료")
+    logger.info("=" * 60)
+    
+    try:
+        scheduler.shutdown()
+        logger.info("✅ 스케줄러 종료 완료")
+    except Exception as e:
+        logger.error(f"스케줄러 종료 실패: {e}")
+
+
 @app.get("/")
 def root():
-    """API 루트 엔드포인트"""
+    """
+    루트 엔드포인트
+    
+    Returns:
+        dict: 서비스 정보
+    """
     return {
-        "service": "Cobee 룸메이트 추천 시스템",
+        "service": "Cobee Roommate Recommendation API",
         "version": "1.0.0",
         "status": "running",
-        "docs": "/docs",
         "endpoints": {
-            "recommend": "POST /api/v1/recommendations/recommend",
-            "health": "GET /api/v1/recommendations/health",
-            "config": "GET /api/v1/recommendations/config",
-            "stats": "GET /api/v1/recommendations/stats"
+            "health": "/recommendations/health",
+            "recommend": "/recommendations/recommend",
+            "config": "/recommendations/config",
+            "stats": "/recommendations/stats",
+            "docs": "/docs"
         }
     }
 
 
-# 시작 이벤트
-@app.on_event("startup")
-async def startup_event():
-    """서버 시작 시 실행"""
-    logger.info("=" * 50)
-    logger.info("Cobee 룸메이트 추천 시스템 시작")
-    logger.info("=" * 50)
+@app.get("/scheduler/status")
+def scheduler_status():
+    """
+    스케줄러 상태 확인
     
-    # Config 로드
+    Returns:
+        dict: 스케줄러 정보
+    """
     try:
-        config.load_config()
-        current_phase = config.get_current_phase()
-        logger.info(f"현재 Phase: {current_phase}")
-        logger.info(f"가중치: {config.get_weights()}")
-    except Exception as e:
-        logger.error(f"Config 로드 실패: {e}")
+        jobs = []
+        for job in scheduler.get_jobs():
+            jobs.append({
+                "id": job.id,
+                "name": job.name,
+                "next_run_time": job.next_run_time.strftime('%Y-%m-%d %H:%M:%S') if job.next_run_time else None,
+                "trigger": str(job.trigger)
+            })
+        
+        return {
+            "scheduler_running": scheduler.running,
+            "jobs": jobs
+        }
     
-    # DB 연결 확인
+    except Exception as e:
+        logger.error(f"스케줄러 상태 조회 실패: {e}")
+        return {
+            "scheduler_running": False,
+            "error": str(e)
+        }
+
+
+@app.post("/scheduler/run-now")
+def run_phase_update_now():
+    """
+    Phase 업데이트 즉시 실행 (수동 트리거)
+    
+    Returns:
+        dict: 실행 결과
+    """
     try:
-        from src.utils.database import health_check
-        if health_check():
-            logger.info("데이터베이스 연결 성공")
-        else:
-            logger.warning("데이터베이스 연결 실패")
-    except Exception as e:
-        logger.error(f"데이터베이스 연결 확인 실패: {e}")
+        logger.info("수동 트리거: Phase 업데이트 즉시 실행")
+        run_phase_update()
+        
+        return {
+            "status": "success",
+            "message": "Phase 업데이트가 실행되었습니다",
+            "timestamp": datetime.now().isoformat()
+        }
     
-    logger.info("서버 준비 완료")
-
-
-# 종료 이벤트
-@app.on_event("shutdown")
-async def shutdown_event():
-    """서버 종료 시 실행"""
-    logger.info("=" * 50)
-    logger.info("Cobee 룸메이트 추천 시스템 종료")
-    logger.info("=" * 50)
-    
-    # DB 연결 정리
-    try:
-        from src.utils.database import close_all_connections
-        close_all_connections()
-        logger.info("데이터베이스 연결 종료 완료")
     except Exception as e:
-        logger.error(f"데이터베이스 연결 종료 실패: {e}")
+        logger.error(f"수동 실행 실패: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 
-# 개발 서버 실행 (직접 실행 시)
 if __name__ == "__main__":
     import uvicorn
+    
     uvicorn.run(
         "src.api.main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,  # 개발 모드
+        reload=True,
         log_level="info"
     )

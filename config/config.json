@@ -1,9 +1,9 @@
 {
   "version": "1.0.0",
-  "last_updated": "2025-10-10T00:00:00Z",
+  "last_updated": "2025-10-12T06:47:05.723735",
   "phase": {
     "current": "P1",
-    "interaction_count": 0,
+    "interaction_count": 507,
     "auto_transition_enabled": true,
     "thresholds": {
       "P1": {
@@ -42,18 +42,18 @@
     },
     "evaluation_history": {
       "P1": {
-        "last_evaluated": null,
-        "precision_at_10": null,
-        "recall_at_10": null,
-        "ndcg_at_10": null,
-        "interaction_count_at_eval": null
+        "last_evaluated": "2025-10-12T06:47:05.721670",
+        "precision_at_10": 0.0,
+        "recall_at_10": 0.0,
+        "ndcg_at_10": 0.0,
+        "interaction_count_at_eval": 0
       },
       "P2": {
-        "last_evaluated": null,
-        "precision_at_10": null,
-        "recall_at_10": null,
-        "ndcg_at_10": null,
-        "interaction_count_at_eval": null
+        "last_evaluated": "2025-10-12T06:47:05.721670",
+        "precision_at_10": 0.0,
+        "recall_at_10": 0.0,
+        "ndcg_at_10": 0.0,
+        "interaction_count_at_eval": 0
       },
       "P3": {
         "last_evaluated": null,
