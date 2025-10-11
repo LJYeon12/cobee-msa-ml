@@ -1,7 +1,7 @@
 """
-Phase 자동 업데이트
+Phase 자동 업데이트 (단순화 버전)
 
-상호작용 수를 집계하고, 조건에 따라 Phase를 자동 전환합니다.
+상호작용 수를 집계하고, 임계값에 따라 Phase를 자동 전환합니다.
 
 실행 방법:
     python scripts/update_phase.py
@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 
 class PhaseUpdater:
     """
-    Phase 자동 업데이트 시스템
+    Phase 자동 업데이트 시스템 (상호작용 수 기반)
     """
     
     def __init__(self):
@@ -72,51 +72,9 @@ class PhaseUpdater:
             logger.error(f"상호작용 집계 실패: {e}")
             return 0
     
-    def should_evaluate_phase_transition(self, current_count: int, last_count: int) -> bool:
-        """
-        Phase 전환 평가 필요 여부 확인
-        
-        Args:
-            current_count: 현재 상호작용 수
-            last_count: 마지막 평가 시점 상호작용 수
-        
-        Returns:
-            bool: 평가 필요 여부
-        """
-        # 자동 전환 비활성화 시
-        if not self.config.get("phase.auto_transition_enabled", True):
-            logger.info("자동 Phase 전환이 비활성화되어 있습니다")
-            return False
-        
-        # 최소 상호작용 수
-        min_interactions = self.config.get(
-            "phase.thresholds.P2.min", 
-            100
-        )
-        
-        if current_count < min_interactions:
-            logger.info(f"상호작용 수 부족: {current_count} < {min_interactions}")
-            return False
-        
-        # 평가 주기 (100개 단위)
-        evaluation_interval = self.config.get(
-            "phase.transition_criteria.evaluation_interval",
-            100
-        )
-        
-        # 100개 단위로 증가했는지 확인
-        current_milestone = (current_count // evaluation_interval) * evaluation_interval
-        last_milestone = (last_count // evaluation_interval) * evaluation_interval
-        
-        if current_milestone > last_milestone:
-            logger.info(f"평가 주기 도달: {last_milestone} → {current_milestone}")
-            return True
-        
-        return False
-    
     def get_phase_by_interaction_count(self, count: int) -> str:
         """
-        상호작용 수 기반 Phase 결정 (기본 규칙)
+        상호작용 수 기반 Phase 결정
         
         Args:
             count: 상호작용 수
@@ -155,93 +113,55 @@ class PhaseUpdater:
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(self.config._config, f, indent=2, ensure_ascii=False)
         
-        logger.info(f"Phase 업데이트 완료: {old_phase} → {new_phase} (상호작용: {interaction_count})")
-    
-    def run_phase_comparison(self) -> str:
-        """
-        Phase 비교 평가 실행
-        
-        Returns:
-            str: 권장 Phase
-        """
-        logger.info("Phase 비교 평가 시작...")
-        
-        try:
-            # compare_phases.py 실행
-            from scripts.compare_phases import PhaseComparator
-            
-            comparator = PhaseComparator()
-            recommended_phase = comparator.run()
-            
-            logger.info(f"Phase 비교 완료: 권장 Phase = {recommended_phase}")
-            
-            return recommended_phase
-            
-        except Exception as e:
-            logger.error(f"Phase 비교 실패: {e}", exc_info=True)
-            # 실패 시 현재 Phase 유지
-            return self.config.get_current_phase()
+        if old_phase != new_phase:
+            logger.info(f"✅ Phase 전환: {old_phase} → {new_phase} (상호작용: {interaction_count})")
+        else:
+            logger.info(f"✅ Phase 유지: {new_phase} (상호작용: {interaction_count})")
     
     def run(self):
         """
-        Phase 업데이트 메인 로직
+        Phase 업데이트 메인 로직 (단순화 버전)
         """
         try:
             logger.info("=" * 60)
-            logger.info("Phase 업데이트 시작")
+            logger.info("Phase 업데이트 시작 (상호작용 수 기반)")
             logger.info("=" * 60)
             
             # 1. 상호작용 수 집계
             current_interaction_count = self.count_interactions()
-            last_interaction_count = self.config.get("phase.interaction_count", 0)
             current_phase = self.config.get_current_phase()
             
             logger.info(f"현재 Phase: {current_phase}")
-            logger.info(f"상호작용 수: {last_interaction_count} → {current_interaction_count}")
+            logger.info(f"상호작용 수: {current_interaction_count}")
             
-            # 2. Phase 전환 평가 필요 여부 확인
-            should_evaluate = self.should_evaluate_phase_transition(
-                current_interaction_count,
-                last_interaction_count
-            )
+            # 2. 상호작용 수로 Phase 결정
+            new_phase = self.get_phase_by_interaction_count(current_interaction_count)
             
-            new_phase = current_phase
+            # 임계값 정보 출력
+            thresholds = self.config.get("phase.thresholds", {})
+            p2_min = thresholds.get("P2", {}).get("min", 100)
+            p3_min = thresholds.get("P3", {}).get("min", 1000)
             
-            if should_evaluate:
-                logger.info("🔍 성능 기반 Phase 비교 평가 실행...")
-                
-                # 3. 성능 비교 평가
-                recommended_phase = self.run_phase_comparison()
-                
-                if recommended_phase != current_phase:
-                    logger.info(f"✅ Phase 전환 권장: {current_phase} → {recommended_phase}")
-                    new_phase = recommended_phase
-                else:
-                    logger.info(f"⚠️ 현재 Phase 유지 권장: {current_phase}")
-                    new_phase = current_phase
+            logger.info(f"Phase 임계값:")
+            logger.info(f"  - P1: 0 ~ {p2_min-1}")
+            logger.info(f"  - P2: {p2_min} ~ {p3_min-1}")
+            logger.info(f"  - P3: {p3_min} ~")
             
+            if new_phase != current_phase:
+                logger.info(f"📊 Phase 전환 필요: {current_phase} → {new_phase}")
             else:
-                # 자동 전환 비활성화 시 기본 규칙 사용
-                if not self.config.get("phase.auto_transition_enabled", True):
-                    new_phase = self.get_phase_by_interaction_count(current_interaction_count)
-                    
-                    if new_phase != current_phase:
-                        logger.info(f"📊 상호작용 수 기반 Phase 전환: {current_phase} → {new_phase}")
+                logger.info(f"📊 Phase 유지: {current_phase}")
             
-            # 4. config.json 업데이트
-            if new_phase != current_phase or current_interaction_count != last_interaction_count:
-                self.update_phase_in_config(new_phase, current_interaction_count)
-            else:
-                # 상호작용 수만 업데이트
-                self.config._config['phase']['interaction_count'] = current_interaction_count
-                config_path = self.config._config_path
-                with open(config_path, 'w', encoding='utf-8') as f:
-                    json.dump(self.config._config, f, indent=2, ensure_ascii=False)
-                logger.info("상호작용 수만 업데이트 완료")
+            # 3. config.json 업데이트
+            self.update_phase_in_config(new_phase, current_interaction_count)
             
             logger.info("=" * 60)
             logger.info(f"Phase 업데이트 완료: {new_phase}")
             logger.info(f"상호작용 총합: {current_interaction_count}")
+            
+            # 가중치 정보 출력
+            weights = self.config.get_weights(new_phase)
+            logger.info(f"현재 가중치: Rule-Based={weights['rule_based']*100}%, MF={weights['matrix_factorization']*100}%")
             logger.info("=" * 60)
             
             return new_phase

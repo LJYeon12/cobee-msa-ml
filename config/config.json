@@ -1,10 +1,11 @@
 {
   "version": "1.0.0",
-  "last_updated": "2025-10-12T06:47:05.723735",
+  "last_updated": "2025-10-12T07:05:04.765867",
   "phase": {
-    "current": "P1",
+    "current": "P2",
     "interaction_count": 507,
     "auto_transition_enabled": true,
+    "use_simple_threshold": true,
     "thresholds": {
       "P1": {
         "min": 0,

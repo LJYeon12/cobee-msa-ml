@@ -185,6 +185,33 @@ class HybridRecommender:
                 item = rule_items_dict[post_id]
                 item.score = blended_scores[post_id]
                 item.rank = rank
+                
+                # ✨ MF 정보를 explanation에 추가
+                if item.explanation:
+                    # 기존 details 유지하면서 MF 정보 추가
+                    if item.explanation.details is None:
+                        item.explanation.details = {}
+                    
+                    # MF 원본 예측값
+                    if post_id in mf_predictions:
+                        item.explanation.details["mf_rating"] = round(mf_predictions[post_id], 4)
+                    
+                    # 정규화된 점수들
+                    if post_id in rule_scores_norm:
+                        item.explanation.details["rule_score_normalized"] = round(rule_scores_norm[post_id], 4)
+                    
+                    if post_id in mf_scores_norm:
+                        item.explanation.details["mf_score_normalized"] = round(mf_scores_norm[post_id], 4)
+                    
+                    # 혼합 가중치
+                    item.explanation.details["blend_weights"] = {
+                        "rule": rule_weight,
+                        "mf": mf_weight
+                    }
+                    
+                    # 최종 혼합 점수
+                    item.explanation.details["final_blended_score"] = round(blended_scores[post_id], 4)
+                
                 result.append(item)
             else:
                 # MF에서만 나온 아이템 (새로 생성)
@@ -204,7 +231,15 @@ class HybridRecommender:
                             score=blended_scores[post_id],
                             percentage=f"{int(blended_scores[post_id] * 100)}%",
                             reasons=["MF 기반 추천"],
-                            details={"mf_rating": mf_predictions.get(post_id, 0)}
+                            details={
+                                "mf_rating": round(mf_predictions.get(post_id, 0), 4),
+                                "mf_score_normalized": round(mf_scores_norm.get(post_id, 0), 4),
+                                "blend_weights": {
+                                    "rule": rule_weight,
+                                    "mf": mf_weight
+                                },
+                                "final_blended_score": round(blended_scores[post_id], 4)
+                            }
                         )
                     ))
         
@@ -280,6 +315,8 @@ class HybridRecommender:
         ))
         
         mf_predictions = self.get_mf_predictions(user_id, all_post_ids)
+        
+        logger.info(f"MF 예측 완료: {len(mf_predictions)}개 게시글")
         
         # 4. 혼합
         blended_items = self.blend_recommendations(
