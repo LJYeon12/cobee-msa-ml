@@ -1,6 +1,6 @@
 """
 Pydantic 데이터 모델 스키마
-API 요청/응답 및 데이터 검증에 사용됩니다.
+API 요청/응답 및 데이터 검증에 사용됩니다. (springboot DTO 역할)
 """
 
 from datetime import datetime, date
