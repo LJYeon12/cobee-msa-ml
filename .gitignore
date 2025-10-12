@@ -46,6 +46,7 @@ logs/*.log
 # 데이터 파일 (로컬 개발용)
 data/raw/*
 data/processed/*
+data/*.csv          
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
