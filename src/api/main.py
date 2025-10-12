@@ -9,6 +9,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+import pytz
+
+# 스케줄러 초기화 시
+scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Seoul'))
+
 from datetime import datetime
 import sys
 import os

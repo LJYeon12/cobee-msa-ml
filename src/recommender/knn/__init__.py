@@ -15,9 +15,9 @@ from .similarity import (
 
 __all__ = [
     "RuleBasedKNNRecommender",
-    "is_gender_compatible",
-    "is_age_compatible",
-    "is_age_compatible_bidirectional",
+    "create_feature_vector",
+    "create_weight_vector",
+    "calculate_weighted_euclidean_distance",
     "calculate_age_overlap_coefficient",
     "calculate_gender_match_score"
 ]

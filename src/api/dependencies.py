@@ -36,25 +36,3 @@ def get_config():
     # 최신 설정 반영 (핫리로드)
     config.reload_if_changed()
     return config
-
-
-def get_knn_recommender(
-    db: Session = None,
-    cfg = None
-) -> RuleBasedKNNRecommender:
-    """
-    KNN 추천 엔진 의존성
-    
-    Args:
-        db: 데이터베이스 세션
-        cfg: Config 인스턴스
-    
-    Returns:
-        RuleBasedKNNRecommender: KNN 추천 엔진
-    """
-    if db is None:
-        db = next(get_db())
-    if cfg is None:
-        cfg = get_config()
-    
-    return RuleBasedKNNRecommender(db, cfg)
