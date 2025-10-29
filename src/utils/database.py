@@ -13,8 +13,8 @@ from src.utils.config_loader import config
 # 데이터베이스 URL 조립
 settings = config.settings
 DATABASE_URL = (
-    f"postgresql://{settings.postgres_user}:{settings.postgres_password}@"
-    f"{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}"
+    f"postgresql://{settings.db_username}:{settings.db_password}@"
+    f"{settings.db_host}:{settings.db_port}/{settings.db_name}"
 )
 
 # SQLAlchemy Engine 생성 (Connection Pool 자동 관리)

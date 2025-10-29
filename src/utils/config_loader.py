@@ -17,12 +17,12 @@ class AppSettings(BaseSettings):
     sync_secret_key: str
 
     # Database
-    postgres_host: str
-    postgres_port: int
-    postgres_db: str
-    postgres_user: str
-    postgres_password: str
-    
+    db_host: str
+    db_port: int
+    db_name: str
+    db_username: str
+    db_password: str
+
     # Model Path
     model_path: str = "models/svd_model.pkl"
     
