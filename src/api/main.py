@@ -21,9 +21,12 @@ import os
 # 프로젝트 루트를 Python 경로에 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import asyncio
 from src.api.routers import recommendations
 from src.utils.logger import get_logger
 from src.utils.config_loader import ConfigLoader
+from src.clients.msa_backend_client import ApiClient
+from src.services.data_sync_service import DataSyncService
 
 logger = get_logger(__name__)
 
@@ -45,10 +48,6 @@ app.add_middleware(
 
 # 라우터 등록
 app.include_router(recommendations.router)
-
-# 스케줄러 인스턴스
-scheduler = BackgroundScheduler()
-
 
 def run_phase_update():
     """

@@ -1,12 +1,21 @@
 """
 설정 파일 로더 모듈
-config.json을 로드하고 핫리로드 기능을 제공합니다.
+config.json과 .env 파일을 로드하고 핫리로드 기능을 제공합니다.
 """
 
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class AppSettings(BaseSettings):
+    """환경 변수 로드 클래스"""
+    msa_backend_url: str = "http://localhost:8080"
+    sync_secret_key: str = "default-secret-key"
+    
+    model_config = SettingsConfigDict(env_file="config/.env", env_file_encoding='utf-8', extra='ignore')
 
 
 class ConfigLoader:
@@ -16,6 +25,7 @@ class ConfigLoader:
     _config: Optional[Dict[str, Any]] = None
     _config_path: Optional[Path] = None
     _last_loaded: Optional[datetime] = None
+    _settings: Optional[AppSettings] = None
     
     def __new__(cls):
         """싱글톤 인스턴스 생성"""
@@ -25,7 +35,10 @@ class ConfigLoader:
     
     def __init__(self):
         """초기화 (싱글톤이므로 한 번만 실행됨)"""
-        pass
+        if self._settings is None:
+            self._settings = AppSettings()
+            print("✓ 환경 변수 로드 완료")
+            print(f"  MSA Backend URL: {self._settings.msa_backend_url}")
     
     def load_config(self, config_path: str = "config/config.json") -> Dict[str, Any]:
         """
@@ -181,6 +194,13 @@ class ConfigLoader:
     def config(self) -> Dict[str, Any]:
         """전체 설정 딕셔너리를 반환합니다."""
         return self._config or {}
+    
+    @property
+    def settings(self) -> AppSettings:
+        """환경 변수 설정을 반환합니다."""
+        if self._settings is None:
+            self._settings = AppSettings()
+        return self._settings
 
 
 # 전역 설정 인스턴스 (싱글톤)
