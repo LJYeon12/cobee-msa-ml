@@ -8,19 +8,14 @@ from typing import Generator
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
-from dotenv import load_dotenv
-
-# 환경변수 로드
-load_dotenv()
+from src.utils.config_loader import config
 
 # 데이터베이스 URL 조립
-POSTGRES_HOST = os.getenv("POSTGRES_HOST")
-POSTGRES_PORT = os.getenv("POSTGRES_PORT")
-POSTGRES_DB = os.getenv("POSTGRES_DB")
-POSTGRES_USER = os.getenv("POSTGRES_USER")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-
-DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+settings = config.settings
+DATABASE_URL = (
+    f"postgresql://{settings.postgres_user}:{settings.postgres_password}@"
+    f"{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}"
+)
 
 # SQLAlchemy Engine 생성 (Connection Pool 자동 관리)
 engine = create_engine(

@@ -57,7 +57,7 @@ class ModelEvaluator:
         
         logger.info("ModelEvaluator 초기화 완료")
     
-    def load_model(self, model_path: str = "models/svd_model.pkl"):
+    def load_model(self, model_path: str):
         """
         학습된 모델 로드
         
@@ -328,16 +328,16 @@ class ModelEvaluator:
             
             logger.info("MLflow에 평가 결과 기록 완료")
     
-    def run(self, model_path: str = "models/svd_model.pkl", data_path: str = "data/interactions.csv"):
+    def run(self, data_path: str = "data/interactions.csv"):
         """
         전체 평가 파이프라인 실행
         
         Args:
-            model_path: 모델 파일 경로
             data_path: 데이터 파일 경로
         """
         try:
             # 1. 모델 로드
+            model_path = self.config.settings.model_path
             model = self.load_model(model_path)
             
             # 2. 데이터 로드

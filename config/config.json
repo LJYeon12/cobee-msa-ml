@@ -1,9 +1,9 @@
 {
   "version": "1.0.0",
-  "last_updated": "2025-10-12T07:05:04.765867",
+  "last_updated": "2025-10-29T15:22:05.276819",
   "phase": {
     "current": "P2",
-    "interaction_count": 507,
+    "interaction_count": 271,
     "auto_transition_enabled": true,
     "use_simple_threshold": true,
     "thresholds": {

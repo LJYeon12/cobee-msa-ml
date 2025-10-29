@@ -25,8 +25,6 @@ import asyncio
 from src.api.routers import recommendations
 from src.utils.logger import get_logger
 from src.utils.config_loader import ConfigLoader
-from src.clients.msa_backend_client import ApiClient
-from src.services.data_sync_service import DataSyncService
 
 logger = get_logger(__name__)
 
@@ -49,6 +47,10 @@ app.add_middleware(
 # 라우터 등록
 app.include_router(recommendations.router)
 
+# 스케줄러 인스턴스
+scheduler = BackgroundScheduler()
+
+
 def run_phase_update():
     """
     Phase 업데이트 작업
@@ -70,6 +72,27 @@ def run_phase_update():
         
     except Exception as e:
         logger.error(f"스케줄러: Phase 업데이트 실패 - {e}", exc_info=True)
+
+
+async def run_data_sync():
+    """
+    데이터 동기화 작업 (비동기)
+    """
+    logger.info("=" * 60)
+    logger.info("스케줄러: 데이터 동기화 시작")
+    logger.info(f"실행 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info("=" * 60)
+
+    try:
+        from src.clients.msa_backend_client import ApiClient
+        from src.services.data_sync_service import DataSyncService
+        
+        api_client = ApiClient()
+        sync_service = DataSyncService(api_client)
+        await sync_service.run_sync()
+        
+    except Exception as e:
+        logger.error(f"스케줄러: 데이터 동기화 실패 - {e}", exc_info=True)
 
 
 @app.on_event("startup")
@@ -100,7 +123,7 @@ def startup_event():
     
     # 스케줄러 작업 등록
     try:
-        # 매일 새벽 4:50에 실행
+        # 1. Phase 업데이트 (매일 새벽 4:50)
         scheduler.add_job(
             run_phase_update,
             CronTrigger(hour=4, minute=50),
@@ -109,11 +132,22 @@ def startup_event():
             replace_existing=True
         )
         
+        # 2. 데이터 동기화 (매 시간)
+        scheduler.add_job(
+            lambda: asyncio.run(run_data_sync()),
+            'interval',
+            hours=1,
+            id='data_sync',
+            name='MSA 백엔드 데이터 동기화',
+            replace_existing=True
+        )
+        
         # 스케줄러 시작
         scheduler.start()
         
         logger.info("✅ 스케줄러 시작 완료")
         logger.info("   - Phase 자동 업데이트: 매일 04:50")
+        logger.info("   - 데이터 동기화: 매 시간")
         
         # 선택사항: 서버 시작 시 즉시 1회 실행
         # run_phase_update()
@@ -213,6 +247,32 @@ def run_phase_update_now():
     
     except Exception as e:
         logger.error(f"수동 실행 실패: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@app.post("/scheduler/run-sync-now")
+async def run_data_sync_now():
+    """
+    데이터 동기화 즉시 실행 (수동 트리거)
+    
+    Returns:
+        dict: 실행 결과
+    """
+    try:
+        logger.info("수동 트리거: 데이터 동기화 즉시 실행")
+        await run_data_sync()
+        
+        return {
+            "status": "success",
+            "message": "데이터 동기화가 실행되었습니다. 서버 로그를 확인하세요.",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"데이터 동기화 수동 실행 실패: {e}", exc_info=True)
         return {
             "status": "error",
             "message": str(e),

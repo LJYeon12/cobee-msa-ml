@@ -12,10 +12,21 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class AppSettings(BaseSettings):
     """환경 변수 로드 클래스"""
-    msa_backend_url: str = "http://localhost:8080"
-    sync_secret_key: str = "default-secret-key"
+    # MSA Backend
+    msa_backend_url: str
+    sync_secret_key: str
+
+    # Database
+    postgres_host: str
+    postgres_port: int
+    postgres_db: str
+    postgres_user: str
+    postgres_password: str
     
-    model_config = SettingsConfigDict(env_file="config/.env", env_file_encoding='utf-8', extra='ignore')
+    # Model Path
+    model_path: str = "models/svd_model.pkl"
+    
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding='utf-8', extra='ignore')
 
 
 class ConfigLoader:

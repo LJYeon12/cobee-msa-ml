@@ -44,8 +44,8 @@ class HybridRecommender:
         
         # MF 모델 로드 (P2, P3에서 사용)
         self.mf_model = None
-        self.mf_model_path = "models/svd_model.pkl"
-        
+        self.mf_model_path = config.settings.model_path
+                
         logger.info("HybridRecommender 초기화 완료")
     
     def load_mf_model(self):
