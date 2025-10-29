@@ -72,7 +72,11 @@ class DataSyncService:
         Main method to run the entire data synchronization and model retraining pipeline.
         """
         logger.info("Starting data synchronization pipeline...")
-        last_sync_time = self._get_last_sync_time()
+        last_sync_time_str = self._get_last_sync_time()
+        last_sync_time: datetime | None = None
+        if last_sync_time_str:
+            # The string from JSON needs to be parsed into a datetime object
+            last_sync_time = datetime.fromisoformat(last_sync_time_str)
         logger.info(f"Last sync time: {last_sync_time or 'Never'}")
 
         db: Session = next(get_db())
