@@ -78,3 +78,11 @@ class CommentSyncDto(SyncBase):
     recruit_post_id: int
     created_at: datetime
     updated_at: datetime
+
+class SyncData(BaseModel):
+    """Container for all data types fetched during a sync operation."""
+    members: List[MemberSyncDto] = Field(default_factory=list)
+    recruit_posts: List[RecruitPostSyncDto] = Field(default_factory=list)
+    apply_records: List[ApplyRecordSyncDto] = Field(default_factory=list)
+    bookmarks: List[BookmarkSyncDto] = Field(default_factory=list)
+    comments: List[CommentSyncDto] = Field(default_factory=list)

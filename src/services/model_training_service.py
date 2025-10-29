@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from surprise import Dataset, Reader, SVD
 import pickle
 import mlflow
+import asyncio
 from src.utils.config_loader import config
 from src.utils.logger import get_logger
 
@@ -35,7 +36,6 @@ class ModelTrainingService:
             f"{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}"
         )
         self.engine = create_engine(connection_string)
-        mlflow.set_tracking_uri("file:./mlruns")
         mlflow.set_experiment("matrix-factorization-retrain")
 
     def _build_interaction_matrix(self) -> pd.DataFrame:
@@ -52,7 +52,7 @@ class ModelTrainingService:
         
         return interactions[['user_id', 'item_id', 'rating']]
 
-    def run_training(self):
+    def _run_training_sync(self):
         logger.info("Starting model retraining pipeline...")
         try:
             interactions_df = self._build_interaction_matrix()
@@ -80,3 +80,8 @@ class ModelTrainingService:
 
         except Exception as e:
             logger.error(f"Model retraining pipeline failed: {e}", exc_info=True)
+
+    async def run_training(self):
+        """Runs the synchronous training method in a separate thread."""
+        logger.info("Scheduling model retraining in a background thread.")
+        await asyncio.to_thread(self._run_training_sync)

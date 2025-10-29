@@ -76,23 +76,27 @@ def run_phase_update():
 
 async def run_data_sync():
     """
-    데이터 동기화 작업 (비동기)
+    데이터 동기화 작업을 수행하는 메인 비동기 함수.
+    ApiClient와 DataSyncService를 초기화하고 동기화 파이프라인을 실행합니다.
     """
     logger.info("=" * 60)
-    logger.info("스케줄러: 데이터 동기화 시작")
+    logger.info("데이터 동기화 작업 시작...")
     logger.info(f"실행 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 60)
-
     try:
         from src.clients.msa_backend_client import ApiClient
         from src.services.data_sync_service import DataSyncService
-        
+
         api_client = ApiClient()
         sync_service = DataSyncService(api_client)
         await sync_service.run_sync()
-        
+        logger.info("데이터 동기화 작업 성공적으로 완료.")
     except Exception as e:
-        logger.error(f"스케줄러: 데이터 동기화 실패 - {e}", exc_info=True)
+        logger.error(f"데이터 동기화 작업 중 오류 발생: {e}", exc_info=True)
+    finally:
+        logger.info("=" * 60)
+        logger.info("데이터 동기화 작업 종료.")
+        logger.info("=" * 60)
 
 
 @app.on_event("startup")
@@ -133,8 +137,9 @@ def startup_event():
         )
         
         # 2. 데이터 동기화 (매 시간)
+        loop = asyncio.get_event_loop()
         scheduler.add_job(
-            lambda: asyncio.run(run_data_sync()),
+            lambda: asyncio.run_coroutine_threadsafe(run_data_sync(), loop),
             'interval',
             hours=1,
             id='data_sync',
